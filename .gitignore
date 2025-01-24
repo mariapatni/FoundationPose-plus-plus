@@ -1,0 +1,15 @@
+*.pyc
+*.pth
+FoundationPose/bundlesdf/mycuda/
+FoundationPose/mycpp/build/
+sam-hq/
+Cutie/
+pose/
+pose_visualization/
+FoundationPose/
+masks_visualization/
+Qwen2-VL/
+samurai/
+visualize/
+masks/
+output_pose.npy
