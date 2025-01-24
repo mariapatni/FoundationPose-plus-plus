@@ -13,3 +13,4 @@ samurai/
 visualize/
 masks/
 output_pose.npy
+.vscode/
