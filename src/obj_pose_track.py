@@ -9,8 +9,9 @@ import multiprocessing as mp
 from typing import List
 import imageio.v2 as imageio  # Suppress DeprecationWarning
 import trimesh
-
+from scipy.spatial.transform import Rotation
 from VOT import Cutie, Tracker_2D  
+from samurai_essentials.kalman_filter_6d import KalmanFilter6D
 
 
 
@@ -53,12 +54,45 @@ def adjust_pose_to_image_point(
     Returns:
     - ob_in_cam_new: Adjusted 6D pose as a 4x4 transformation matrix.
     """
-
-    if x == -1. or y == -1.:
-        return ob_in_cam
-
     # Extract rotation (R) and translation (t) from the original pose
     R = ob_in_cam[:3, :3]
+    t = ob_in_cam[:3, 3]
+
+    tx, ty = get_pose_xy_from_image_point(ob_in_cam, K, x, y)
+
+    # Update the translation vector
+    t_new = np.array([tx, ty, t[2]])
+
+    # Construct the new transformation matrix with the updated translation
+    ob_in_cam_new = np.eye(4)
+    ob_in_cam_new[:3, :3] = R
+    ob_in_cam_new[:3, 3] = t_new
+
+    return ob_in_cam_new
+
+
+def get_pose_xy_from_image_point(
+        ob_in_cam: np.ndarray, 
+        K: np.ndarray, 
+        x: float = -1., 
+        y: float = -1.,
+) -> np.ndarray:
+    """
+    Adjusts the 6D pose so that its projection matches the given 2D coordinate (x, y).
+
+    Parameters:
+    - K: Camera intrinsic matrix (3x3).
+    - ob_in_cam: Original 6D pose as a 4x4 transformation matrix.
+    - x, y: Desired 2D coordinates on the image plane.
+
+    Returns:
+    - ob_in_cam_new: Adjusted 6D pose as a 4x4 transformation matrix.
+    """
+
+    if x == -1. or y == -1.:
+        return x, y
+
+    # Extract rotation (R) and translation (t) from the original pose
     t = ob_in_cam[:3, 3]
 
     # Camera intrinsic parameters
@@ -74,17 +108,7 @@ def adjust_pose_to_image_point(
     tx = (x - cx) * tz / fx
     ty = (y - cy) * tz / fy     
 
-    # Update the translation vector
-    t_new = np.array([tx, ty, tz])
-
-    # Construct the new transformation matrix with the updated translation
-    ob_in_cam_new = np.eye(4)
-    ob_in_cam_new[:3, :3] = R
-    ob_in_cam_new[:3, 3] = t_new
-
-    # 在
-
-    return ob_in_cam_new
+    return tx, ty
 
 
 def project_3d_to_2d(point_3d_homogeneous, K, ob_in_cam):
@@ -100,6 +124,31 @@ def project_3d_to_2d(point_3d_homogeneous, K, ob_in_cam):
     v = K[1, 1] * y + K[1, 2]
 
     return (int(u), int(v))
+
+
+def get_mat_from_6d_pose_arr(pose_arr):
+    # 提取位移 (xyz)
+    xyz = pose_arr[:3]
+    
+    # 提取欧拉角
+    euler_angles = pose_arr[3:]
+    
+    # 从欧拉角生成旋转矩阵
+    rotation = Rotation.from_euler('xyz', euler_angles, degrees=False)
+    rotation_matrix = rotation.as_matrix()
+    
+    # 创建 4x4 变换矩阵
+    transformation_matrix = np.eye(4)
+    transformation_matrix[:3, :3] = rotation_matrix
+    transformation_matrix[:3, 3] = xyz
+    
+    return transformation_matrix
+
+def get_6d_pose_arr_from_mat(pose):
+    xyz = pose[:3, 3]
+    rotation_matrix = pose[:3, :3]
+    euler_angles = Rotation.from_matrix(rotation_matrix).as_euler('xyz', degrees=False)
+    return np.r_[xyz, euler_angles]
 
 
 def pose_track(
@@ -196,7 +245,7 @@ def pose_track(
     # Instantiate the 2D tracker
     #################################################
 
-    if activate_2d_tracker:
+    if activate_2d_tracker:     # 默认是用Cutie来做2d track
         tracker_2D = Cutie()
     else:
         tracker_2D = Tracker_2D()
@@ -206,8 +255,12 @@ def pose_track(
     # 6D pose tracking
     #################################################
 
+    if activate_kalman_filter:
+        kf = KalmanFilter6D()
+
     total_frames = len(frame_color_list)
     pose_seq = [None] * total_frames  # Initialize as None
+    kf_mean, kf_covariance = None, None
 
     # Forward processing from initial frame
     for i in range(0, total_frames):
@@ -234,7 +287,11 @@ def pose_track(
         if i == 0:
             mask = init_mask.astype(np.uint8) * 255
             pose = est.register(K=cam_K, rgb=color, depth=depth, ob_mask=mask, iteration=est_refine_iter)
+            if activate_kalman_filter:
+                kf_mean, kf_covariance = kf.initiate(get_6d_pose_arr_from_mat(pose))
+
             
+            # pose 为4*4的矩阵
             mask_visualization_color_filename = None
             bbox_visualization_color_filename = None
             if mask_visualization_path is not None:
@@ -263,9 +320,21 @@ def pose_track(
                 mask_visualization_path=mask_visualization_color_filename,
                 bbox_visualization_path=bbox_visualization_color_filename
             )
-
             adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
+
+            if not activate_kalman_filter:
+               adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
+            else:
+                # 通过x y再更新一下卡尔曼滤波器
+                kf_mean, kf_covariance = kf.update_from_xy(kf_mean, kf_covariance, np.array(get_pose_xy_from_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)))
+                adjusted_last_pose = get_mat_from_6d_pose_arr(kf_mean[:6])  
+
             pose = est.track_one_w_spec_last_pose(rgb=color, depth=depth, K=cam_K, iteration=track_refine_iter, spec_last_pose=adjusted_last_pose)
+            if activate_kalman_filter:
+                kf_mean, kf_covariance = kf.predict(kf_mean, kf_covariance)
+                kf_mean, kf_covariance = kf.update(kf_mean, kf_covariance, get_6d_pose_arr_from_mat(pose))
+                pose = get_mat_from_6d_pose_arr(kf_mean[:6])
+            
             
         pose_seq[i] = pose.reshape(4, 4)
 
@@ -332,12 +401,12 @@ if __name__ == "__main__":
     parser.add_argument("--cam_K", type=json.loads, default="[[912.7279052734375, 0.0, 667.5955200195312], [0.0, 911.0028076171875, 360.5406799316406], [0.0, 0.0, 1.0]]")
     parser.add_argument("--pose_output_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/pose")
     parser.add_argument("--mask_visualization_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/masks_visualization")
-    parser.add_argument("--bbox_visualization_path", type=str, default=None)
+    parser.add_argument("--bbox_visualization_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/bbox_visualization")
     parser.add_argument("--pose_visualization_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/pose_visualization")
     parser.add_argument("--est_refine_iter", type=int, default=10)
     parser.add_argument("--track_refine_iter", type=int, default=5)
     parser.add_argument("--activate_2d_tracker", type=bool, default=True)
-    parser.add_argument("--activate_kalman_filter", type=bool, default=False)
+    parser.add_argument("--activate_kalman_filter", type=bool, default=True)
     args = parser.parse_args()
 
     pose_track(

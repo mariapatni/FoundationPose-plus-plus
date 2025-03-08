@@ -14,3 +14,6 @@ visualize/
 masks/
 output_pose.npy
 .vscode/
+bbox_visualization/
+pose_visualization/
+pose_visualization copy/
