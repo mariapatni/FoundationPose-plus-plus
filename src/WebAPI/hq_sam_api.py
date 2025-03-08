@@ -114,7 +114,7 @@ async def segment_image(message: Message):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the SAM Web API")
-    parser.add_argument("--checkpoint_path", type=str, default="/home/admin01/Data/PsiRobot/dataset-postprocess4pkg/src/sam-hq/pretrained_checkpoints/sam_hq_vit_h.pth", help="Path to the SAM model checkpoint")
+    parser.add_argument("--checkpoint_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/sam-hq/pretrained_checkpoints/sam_hq_vit_h.pth")
     parser.add_argument("--port", type=int, default=9002)
     args = parser.parse_args()
 
