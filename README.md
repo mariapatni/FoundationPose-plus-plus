@@ -1,4 +1,5 @@
 # FoundationPose++
+FoundationPose++ is a project designed to provide a highly robust 6D pose tracking solution for dynamic environments. Leveraging the strengths of [FoundationPose](https://github.com/NVlabs/FoundationPose), this project enhances pose estimation accuracy and stability under rapid motion and challenging scene variations. 
 
 ## Environment Setup
 check [install.md](./Install.md) to install all the dependencies
@@ -23,7 +24,7 @@ There should be an RGB image file and a corresponding depth file for each frame,
 ## Run webapi servers (QwenVL and SAM)
 `cd $PROJECT_ROOT`
 
-Fill in the path of the downloaded weights in `run_servers.sh`.
+Fill in the path of the downloaded weights in [run_servers.sh](./run_servers.sh).
 
 Run all the servers using `bash run_servers.sh`
 
@@ -50,9 +51,10 @@ python src/utils/obj_mask.py  \
 
 `$PATH_OF_REFERENCE_IMAGE`: you can provide what the object looks like to help QwenVL anchor box positions more precisely.
 
-## Track Inference
+## 6D Pose Track Inference
  `cd $PROJECT_ROOT`
 
+Run the following script to track 6D Pose, the results will be visualized in `$PROJECT_ROOT/pose_visualization`.
 ```
 python src/obj_pose_track.py \
 --rgb_seq_path $PROJECT_ROOT/test_case/color \
