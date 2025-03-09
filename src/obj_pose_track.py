@@ -245,7 +245,7 @@ def pose_track(
     # Instantiate the 2D tracker
     #################################################
 
-    if activate_2d_tracker:     # 默认是用Cutie来做2d track
+    if activate_2d_tracker:     # Default using Cutie as a 2D tracker
         tracker_2D = Cutie()
     else:
         tracker_2D = Tracker_2D()
@@ -320,12 +320,12 @@ def pose_track(
                 mask_visualization_path=mask_visualization_color_filename,
                 bbox_visualization_path=bbox_visualization_color_filename
             )
+            # TODO: get occluded mask
             adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
 
             if not activate_kalman_filter:
                adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
             else:
-                # 通过x y再更新一下卡尔曼滤波器
                 kf_mean, kf_covariance = kf.update_from_xy(kf_mean, kf_covariance, np.array(get_pose_xy_from_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)))
                 adjusted_last_pose = get_mat_from_6d_pose_arr(kf_mean[:6])  
 
