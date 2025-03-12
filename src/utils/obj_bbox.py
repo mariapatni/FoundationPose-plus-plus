@@ -90,14 +90,14 @@ def request_bbox(
         output_text = response.json()['output'][0]
         bbox_xywh = _parse_qwen2_vl_output(output_text, img_H, img_W)
         visualize_bbox(frame, bbox_xywh, visualize_path)
-        print(f"The generated bounding box {bbox_xywh} has been visualized in {visualize_path}")
+        print(f"{bbox_xywh}")
     else:
         print(f"Error: {response.status_code}, {response.json()}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--frame_path", type=str, default="/workspace/yanwenhao/detection/test_case2/color/0.jpg", help="The target frame (.jpg/.png/...) path.")
+    parser.add_argument("--frame_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/testcase/color/0.jpg", help="The target frame (.jpg/.png/...) path.")
     parser.add_argument("--object_name", type=str, default="蓝色乐高积木", help="The object description. CHINESE will be better than English, for Qwen models.")
     parser.add_argument("--visualize_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/visualize/0_v.jpg", help="The visualization image with bbox overlapped on the target frame.")
     parser.add_argument("--web_api_url", type=str, default="http://127.0.0.1:9003/qwen2_vl")
