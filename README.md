@@ -1,5 +1,31 @@
-# FoundationPose++
-FoundationPose++ is a project designed to provide a highly robust 6D pose tracking solution for dynamic environments. Leveraging the strengths of [FoundationPose](https://github.com/NVlabs/FoundationPose), this project enhances pose estimation accuracy and stability under rapid motion and challenging scene variations. 
+# FoundationPose++: Simple Tricks Boost FoundationPose Performance in High-Dynamic Scenes
+# Note: The repository has some issues! We will fix them by the end of Mar 12!
+
+FoundationPose++ is a real-time 6D pose tracker for highly dynamic scenes. 
+This project is based on [FoundationPose](https://github.com/NVlabs/FoundationPose), and consists of four main modules: FoundationPose + 2D Tracker + Kalman Filter + Amodal Completion.
+
+Here's the Introduction Video:
+[![FoundationPose++](.figs/FoundationPose++.png)](https://private-user-images.githubusercontent.com/105377443/421755163-34d1015c-8362-4f2d-a326-e45f9b873549.mp4?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDE3NjQ5MjksIm5iZiI6MTc0MTc2NDYyOSwicGF0aCI6Ii8xMDUzNzc0NDMvNDIxNzU1MTYzLTM0ZDEwMTVjLTgzNjItNGYyZC1hMzI2LWU0NWY5Yjg3MzU0OS5tcDQ_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwMzEyJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDMxMlQwNzMwMjlaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1jODQxNTE1MTYyZjRkYzc0ZTBiM2NjZWM3NTgxOTY0NzU0NTRhNzViMmE2MTQ5Mzc2MDdmZTVmMDFhNDNkZmZkJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.AkrXNIeBm3NNUNus6aCZpwG28aCviowF5pzlajR-Yhg)
+
+### For clearer video and to join the discussion community, please see [RedNote](https://www.xiaohongshu.com/discovery/item/67ce169b000000001201e203?source=webshare&xhsshare=pc_web&xsec_token=ABTzV32iwDLsRWKQcjSq_uNKS-7_ZXxHxrXb73L3UGnOI=&xsec_source=pc_share)
+
+<br>
+
+## Motivation
+
+I am interning at a robotics company, and my first task is to develop an automatic annotation tool for a robot manipulation dataset. I need to solve for the 6D pose of target objects, and the first thing that came to mind was FoundationPose. However, FoundationPose performs poorly in tracking the 6D pose of objects in high-dynamic scenes. I believe the reason is that FoundationPose's tracking is a 'pseudo-tracking' method, where for each new frame, it uses the 6D pose solution from the previous frame as the initial solution for optimization. So, why not provide it with a real tracking method?
+
+## Method
+For the 6 degrees of freedom in 6D pose (x, y, z, roll, pitch, yaw), I use common 2D trackers like Cutie, Samurai, OSTrack, etc., for xy. For z, I directly take the depth at (x, y). For (roll, pitch, yaw), I use a Kalman Filter for tracking. This is a very simple and engineering-oriented trick, but the final results are outstanding. I named it FoundationPose++.
+
+## Others
+### Real-Time
+The additional modules in FoundationPose++ do not significantly impact the real-time performance of the original FoundationPose. According to the original paper, FoundationPose is divided into two stages: Initialization and Tracking. Initialization only solves the first frame using a Refinement network and a Ranking network, which involves randomizing a few hundred initial solutions, running each through the Refinement, and then performing a final Ranking to select the highest-ranked solution as the solution for the first frame. For the subsequent tracking process, it doesn't need to initialize hundreds of solutions; it only needs to take the final solution from the previous frame as the initial solution for the next frame, which means only running the Refinement once without Ranking. This allows FoundationPose to achieve speeds of over 30 FPS on a 3090 (running in Python).
+
+In our FoundationPose++, the tracking process also only requires running the Refinement once per frame. The additional time cost mainly comes from the 2D tracker. But you can choose a faster 2D tracker, like OSTrack, which can run at over 100 FPS on a 3090 and is very accurate.
+
+### Amodal Completion
+Later, to improve occlusion resistance, we considered introducing Amodal Completion, and the current results are being tested. This module might run slowly.
 
 ## Environment Setup
 check [install.md](./Install.md) to install all the dependencies
