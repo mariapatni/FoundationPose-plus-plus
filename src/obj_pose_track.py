@@ -11,7 +11,7 @@ import imageio.v2 as imageio  # Suppress DeprecationWarning
 import trimesh
 from scipy.spatial.transform import Rotation
 from VOT import Cutie, Tracker_2D  
-from samurai_essentials.kalman_filter_6d import KalmanFilter6D
+from utils.kalman_filter_6d import KalmanFilter6D
 
 
 
@@ -207,8 +207,9 @@ def pose_track(
     if isinstance(mesh, trimesh.Scene):
         mesh = mesh.dump(concatenate=True)
     # Convert units to meters
-    mesh.apply_scale(0.01)
-    mesh = trimesh_add_pure_colored_texture(mesh, color=np.array([0, 159, 237]), resolution=10)
+    mesh.apply_scale(args.apply_scale)
+    if args.force_apply_color:
+        mesh = trimesh_add_pure_colored_texture(mesh, color=np.array(args.apply_color), resolution=10)
 
     to_origin, extents = trimesh.bounds.oriented_bounds(mesh)
     bbox = np.stack([-extents / 2, extents / 2], axis=0).reshape(2, 3)
@@ -405,8 +406,11 @@ if __name__ == "__main__":
     parser.add_argument("--cam_K", type=json.loads, default="[[912.7279052734375, 0.0, 667.5955200195312], [0.0, 911.0028076171875, 360.5406799316406], [0.0, 0.0, 1.0]]", help="Camera intrinsic parameters")
     parser.add_argument("--est_refine_iter", type=int, default=10, help="FoundationPose initial refine iterations, see https://github.com/NVlabs/FoundationPose")
     parser.add_argument("--track_refine_iter", type=int, default=5, help="FoundationPose tracking refine iterations, see https://github.com/NVlabs/FoundationPose")
-    parser.add_argument("--activate_2d_tracker", type=bool, default=True, help="activate 2d tracker")
-    parser.add_argument("--activate_kalman_filter", type=bool, default=True, help="activate kalman_filter")
+    parser.add_argument("--activate_2d_tracker", action='store_true', help="activate 2d tracker")
+    parser.add_argument("--activate_kalman_filter", action='store_true', help="activate kalman_filter")
+    parser.add_argument("--apply_scale", type=float, default=0.01, help="Mesh scale factor in meters (1.0 means no scaling), commonly use 0.01")
+    parser.add_argument("--force_apply_color", action='store_true', help="force a color for colorless mesh")
+    parser.add_argument("--apply_color", type=json.loads, default="[0, 159, 237]", help="RGB color to apply, in format 'r,g,b'. Only effective if force_apply_color is True")
     args = parser.parse_args()
 
     pose_track(

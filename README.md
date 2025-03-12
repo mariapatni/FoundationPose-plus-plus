@@ -1,5 +1,4 @@
 # FoundationPose++: Simple Tricks Boost FoundationPose Performance in High-Dynamic Scenes
-# Note: The repository has some issues! We will fix them by the end of Mar 12!
 
 FoundationPose++ is a real-time 6D pose tracker for highly dynamic scenes. 
 This project is based on [FoundationPose](https://github.com/NVlabs/FoundationPose), and consists of four main modules: FoundationPose + 2D Tracker + Kalman Filter + Amodal Completion.
@@ -29,7 +28,7 @@ In our FoundationPose++, the tracking process also only requires running the Ref
 Later, to improve occlusion resistance, we considered introducing Amodal Completion, and the current results are being tested. This module might run slowly.
 
 ## News
-- **`2025/03/12`**: We officially release our program for public preview. The code has been tested on a single RTX4090 GPU. If you have any problem using this project, feel free to submit an issue.
+- **`2025/03/12`**: We officially release our program for public preview. The code has been tested on both Nvidia RTX4090@Ubuntu20.04 and Nvidia H800@Ubuntu 22.04. If you have any problem using this project, feel free to submit an issue.
 
 ## Environment Setup
 check [install.md](./Install.md) to install all the dependencies
@@ -95,9 +94,9 @@ python src/obj_pose_track.py \
 --mask_visualization_path $PROJECT_ROOT/mask_visualization \
 --bbox_visualization_path $PROJECT_ROOT/bbox_visualization \
 --pose_visualization_path $PROJECT_ROOT/pose_visualization \
---activate_2d_tracker True \
---activate_kalman_filter True
+--activate_2d_tracker \
+--activate_kalman_filter \
+--apply_scale 0.01
 ```
 
-You can deactivate 2d_tracker or kalman filter according to your use case.
-Regarding original [FoundationPose](https://github.com/030422Lee/FoundationPose_manual) parameters, checkout https://github.com/NVlabs/FoundationPose/issues/44#issuecomment-2048141043 if you have further problems or get unexpected results.
+Use `force_apply_color` and `apply_color` to select a color for the mesh. Regarding other original [FoundationPose](https://github.com/030422Lee/FoundationPose_manual) parameters, checkout https://github.com/NVlabs/FoundationPose/issues/44#issuecomment-2048141043 if you have further problems or get unexpected results. Use `-h` to see the usages of the parameters. 
