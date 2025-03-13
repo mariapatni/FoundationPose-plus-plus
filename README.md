@@ -13,10 +13,21 @@ https://private-user-images.githubusercontent.com/105377443/421755163-34d1015c-8
 
 ## Motivation
 
-I am interning at a robotics company, and my first task is to develop an automatic annotation tool for a robot manipulation dataset. I need to solve for the 6D pose of target objects, and the first thing that came to mind was FoundationPose. However, FoundationPose performs poorly in tracking the 6D pose of objects in high-dynamic scenes. I believe the reason is that FoundationPose's tracking is a 'pseudo-tracking' method, where for each new frame, it uses the 6D pose solution from the previous frame as the initial solution for optimization. So, why not provide it with a real tracking method?
+I am interning at a robotics company, and my first task is to develop an automatic annotation tool for a robot manipulation dataset. I need to solve for the 6D pose of target objects, and the first thing that came to mind was FoundationPose. However, FoundationPose performs poorly in tracking the 6D pose of objects in high-dynamic scenes. 
+
+I believe the reason is that FoundationPose's tracking is a 'pseudo-tracking' method, where for each new frame, it uses the 6D pose solution from the previous frame as the initial solution for optimization. So, why not provide it with a real tracking method?
+
+![FoundationPose](.figs/FoundationPose.png)
+![Lego_FoundationPose](.figs/Lego_FoundationPose.png)
+
+<br>
 
 ## Method
 For the 6 degrees of freedom in 6D pose (x, y, z, roll, pitch, yaw), I use common 2D trackers like Cutie, Samurai, OSTrack, etc., for xy. For z, I directly take the depth at (x, y). For (roll, pitch, yaw), I use a Kalman Filter for tracking. This is a very simple and engineering-oriented trick, but the final results are outstanding. I named it FoundationPose++.
+
+![FoundationPose++_Method](.figs/FoundationPose++_Method.png)
+
+<br>
 
 ## Others
 ### Real-Time
@@ -24,14 +35,27 @@ The additional modules in FoundationPose++ do not significantly impact the real-
 
 In our FoundationPose++, the tracking process also only requires running the Refinement once per frame. The additional time cost mainly comes from the 2D tracker. But you can choose a faster 2D tracker, like OSTrack, which can run at over 100 FPS on a 3090 and is very accurate.
 
+![Real_Time](.figs/Real_Time.png)
+
+
 ### Amodal Completion
 To improve occlusion resistance, we considered introducing Amodal Completion. This module might run slowly and have some compability issues, we are still working on the optimization of this module.
 
+![diffusion-vas](.figs/diffusion-vas.gif)
+- From [Using Diffusion Priors for Video Amodal Segmentation](https://diffusion-vas.github.io/)
+
+![Amodal_Depth_Anything](.figs/Amodal_Depth_Anything.png)
+- From [Amodal Depth Anything](https://zhyever.github.io/amodaldepthanything/)
+
 ## News
-- **`2025/03/12`**: We officially release our project containing tracker and kalman filter for public preview. Current code has been tested on both Nvidia RTX4090@Ubuntu20.04 and Nvidia H800@Ubuntu 22.04. If you have any problem using this project, feel free to submit an issue.
+- **`2025/03/12`** 🎉: We officially release our project containing tracker and kalman filter for public preview. Current code has been tested on both Nvidia RTX4090@Ubuntu20.04 and Nvidia H800@Ubuntu 22.04. If you have any problem using this project, feel free to submit an issue.
+
+<br>
 
 ## Environment Setup
 Check [install.md](./Install.md) to install all the dependencies.
+
+<br>
 
 ## Prepare your testcase data
 Your testcase data should be formatted like:
@@ -46,10 +70,11 @@ $PROJECT_ROOT/$TESTCASE
     ├── 1.png
     └── ...
 └── mesh
-    ├── 1x4.stl
+    ├── mesh.obj/mesh.stl/etc.
 ```
 There should be an RGB image file and a corresponding depth file for each frame, as well as a mesh file of the object, following [FoundationPose](https://github.com/NVlabs/FoundationPose) data format. You can check out [FoundationPose_manual](https://github.com/030422Lee/FoundationPose_manual) if you are not familiar with FoundationPose.
 
+<br>
 
 ## Try our Demo
 We provide our demo of lego_20fps in Google Drive: https://drive.google.com/file/d/1oN5IZHKlb06hEol6akwx1ibCiVcJBuuI/view?usp=sharing
@@ -75,6 +100,14 @@ python src/obj_pose_track.py \
 --est_refine_iter 10 \
 --track_refine_iter 3
 ```
+
+Then you will see the demo, which is the same as the one shown in the Introduction Video above ([RedNote](https://www.xiaohongshu.com/discovery/item/67ce169b000000001201e203?source=webshare&xhsshare=pc_web&xsec_token=ABTzV32iwDLsRWKQcjSq_uNKS-7_ZXxHxrXb73L3UGnOI=&xsec_source=pc_share)):
+
+https://private-user-images.githubusercontent.com/105377443/422492166-b1c4afba-ad14-4222-9332-640070d98d94.mp4?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NDE4OTE0ODgsIm5iZiI6MTc0MTg5MTE4OCwicGF0aCI6Ii8xMDUzNzc0NDMvNDIyNDkyMTY2LWIxYzRhZmJhLWFkMTQtNDIyMi05MzMyLTY0MDA3MGQ5OGQ5NC5tcDQ_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUwMzEzJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MDMxM1QxODM5NDhaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT0zMjRiZjBjMzVhNmIwMDYzNGExNWMxZDllMzM1ZjA4NmM2ODc2YWJjNjgxMDFmYWMwMWE2ZjEyN2E4ZTAwZjJmJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.VCPTX4NycgCiqbpjlbI3oSPoj2VCBFfHCP-nZjDaNXw
+
+The other video in the Introduction Video cannot be released as a demo because the meshes used in it are the private property of our company. ([PsiBot](https://www.qbitai.com/2024/11/218183.html)![PsiBot](.figs/PsiBot.ico)灵初智能)
+
+<br>
 
 ## Inference with your own data
 ### Get the object mask of the first frame to initialize the 2D tracker
@@ -140,6 +173,3 @@ Use `-h` to see the usages of the parameters.
 For finer grained kalman filter settings, see [kalman_filter_6d.py](./src/utils/kalman_filter_6d.py).
 
 Use `force_apply_color` and `apply_color` to select a color for the mesh. Regarding other original [FoundationPose](https://github.com/030422Lee/FoundationPose_manual) parameters, checkout https://github.com/NVlabs/FoundationPose/issues/44#issuecomment-2048141043 if you have further problems or get unexpected results. 
-
-
-
