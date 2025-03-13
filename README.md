@@ -31,15 +31,15 @@ To improve occlusion resistance, we considered introducing Amodal Completion. Th
 - **`2025/03/12`**: We officially release our project containing tracker and kalman filter for public preview. Current code has been tested on both Nvidia RTX4090@Ubuntu20.04 and Nvidia H800@Ubuntu 22.04. If you have any problem using this project, feel free to submit an issue.
 
 ## Environment Setup
-check [install.md](./Install.md) to install all the dependencies
+Check [install.md](./Install.md) to install all the dependencies.
 
 ## Prepare your testcase data
 Your testcase data should be formatted like:
 ```
-$PROJECT_ROOT/testcase
+$PROJECT_ROOT/$TESTCASE
 └── color
-    ├── 0.jpg
-    ├── 1.jpg
+    ├── 0.png
+    ├── 1.png
     └── ...
 └── depth
     ├── 0.png
@@ -50,122 +50,96 @@ $PROJECT_ROOT/testcase
 ```
 There should be an RGB image file and a corresponding depth file for each frame, as well as a mesh file of the object, following [FoundationPose](https://github.com/NVlabs/FoundationPose) data format. You can check out [FoundationPose_manual](https://github.com/030422Lee/FoundationPose_manual) if you are not familiar with FoundationPose.
 
-## Run webapi servers (QwenVL and SAM)
+
+## Try our Demo
+We provide our demo of lego_20fps in Google Drive: https://drive.google.com/file/d/1oN5IZHKlb06hEol6akwx1ibCiVcJBuuI/view?usp=sharing
+
+The mask of the first frame has been included in the link. You can run the following scripts to check the results.
 ```
+export TESTCASE="lego_20fps"
 cd $PROJECT_ROOT
+python src/obj_pose_track.py \
+--rgb_seq_path $PROJECT_ROOT/$TESTCASE/color \
+--depth_seq_path $PROJECT_ROOT/$TESTCASE/depth \
+--mesh_path $PROJECT_ROOT/$TESTCASE/mesh/1x4.stl \
+--init_mask_path $PROJECT_ROOT/$TESTCASE/0_mask.png \
+--pose_output_path $PROJECT_ROOT/$TESTCASE/pose.npy \
+--mask_visualization_path $PROJECT_ROOT/$TESTCASE/mask_visualization \
+--bbox_visualization_path $PROJECT_ROOT/$TESTCASE/bbox_visualization \
+--pose_visualization_path $PROJECT_ROOT/$TESTCASE/pose_visualization \
+--cam_K "[[426.8704833984375, 0.0, 423.89471435546875], [0.0, 426.4277648925781, 243.5056915283203], [0.0, 0.0, 1.0]]" \
+--activate_2d_tracker \
+--apply_scale 0.01 \
+--force_apply_color \
+--apply_color "[0, 159, 237]" \
+--est_refine_iter 10 \
+--track_refine_iter 3
+```
+
+## Inference with your own data
+### Get the object mask of the first frame to initialize the 2D tracker
+This process is to get the mask of the first frame, to help FoundationPose better locate the object during tracking. We use a 2-stage method (Qwen-VL + SAM-HQ) as an example to extract the mask, you can use any other tools to get the mask.
+
+
+#### Use Qwen-VL to extract the bounding box [OPTIONAL]
+
+We use Qwen-VL to extract the bounding box, you can use any other tools to get it or directly provide bounding box area without running QwenVL using commands like `BOUNDING_BOX_POSITION=[640, 419, 190, 37]`. 
+
+```
 # start Qwen-VL webapi
+cd $PROJECT_ROOT
 python src/WebAPI/qwen2_vl_api.py --weight_path $PROJECT_ROOT/Qwen2-VL/weights &
-# start SAM webapi
-python src/WebAPI/hq_sam_api.py --checkpoint_path $PROJECT_ROOT/sam-hq/pretrained_checkpoints/sam_hq_vit_h.pth
-```
-## Get the object mask of the first frame to initialize the 2D tracker
-Open another terminal, export PROJECT_ROOT and run the following script to get the position of the bounding box.
-```
+
+# use Qwen-VL to get the bbox of the object
 cd $PROJECT_ROOT
 BOUNDING_BOX_POSITION=$(python src/utils/obj_bbox.py \
-    --frame_path $PROJECT_ROOT/testcase/color/0.jpg \
-    --visualize_path $PROJECT_ROOT/0_bbox.jpg \
+    --frame_path $PROJECT_ROOT/$TESTCASE/color/0.png \
+    --visualize_path $PROJECT_ROOT/$TESTCASE/0_bbox.png \
     --object_name $DESCRIPTION_OF_THE_OBJECT \
     --reference_img_path $PATH_OF_REFERENCE_IMAGE)
 ```
 
-Then run the following script to get the mask of object in the first frame.
+#### Use SAM-HQ to extract the mask [OPTIONAL]
+We use SAM-HQ to extract the mask, you can use any other tools to get it or directly provide it in the path of `$PROJECT_ROOT/$TESTCASE/0_mask.png`. 
 ```
+# start SAM webapi
+python src/WebAPI/hq_sam_api.py --checkpoint_path $PROJECT_ROOT/sam-hq/pretrained_checkpoints/sam_hq_vit_h.pth &
+
+# get the mask of object in the first frame
 python src/utils/obj_mask.py  \
-    --frame_path $PROJECT_ROOT/testcase/color/0.jpg \
+    --frame_path $PROJECT_ROOT/$TESTCASE/color/0.png \
     --bbox_xywh "$BOUNDING_BOX_POSITION" \
-    --output_mask_path $PROJECT_ROOT/0_mask.jpg
+    --output_mask_path $PROJECT_ROOT/$TESTCASE/0_mask.png
 ```
 
 `$DESCRIPTION_OF_THE_OBJECT`: the description of an object to help QwenVL anchor box positions, better in Chinese.
 
 `$PATH_OF_REFERENCE_IMAGE`: you can provide what the object looks like to help QwenVL anchor box positions more precisely.
 
-## 6D Pose Track Inference
+### 6D Pose Track Inference
 Run the following script to track 6D Pose, the results will be visualized in `$PROJECT_ROOT/pose_visualization`.
 ```
 cd $PROJECT_ROOT
 python src/obj_pose_track.py \
---rgb_seq_path $PROJECT_ROOT/testcase/color \
---depth_seq_path $PROJECT_ROOT/testcase/depth \
---mesh_path $PROJECT_ROOT/testcase/mesh/1x4.stl \
---init_mask_path $PROJECT_ROOT/0_mask.jpg \
---pose_output_path $PROJECT_ROOT/pose \
---mask_visualization_path $PROJECT_ROOT/mask_visualization \
---bbox_visualization_path $PROJECT_ROOT/bbox_visualization \
---pose_visualization_path $PROJECT_ROOT/pose_visualization \
+--rgb_seq_path $PROJECT_ROOT/$TESTCASE/color \
+--depth_seq_path $PROJECT_ROOT/$TESTCASE/depth \
+--mesh_path $PROJECT_ROOT/$TESTCASE/mesh/1x4.stl \
+--init_mask_path $PROJECT_ROOT/$TESTCASE/0_mask.png \
+--pose_output_path $PROJECT_ROOT/$TESTCASE/pose.npy \
+--mask_visualization_path $PROJECT_ROOT/$TESTCASE/mask_visualization \
+--bbox_visualization_path $PROJECT_ROOT/$TESTCASE/bbox_visualization \
+--pose_visualization_path $PROJECT_ROOT/$TESTCASE/pose_visualization \
 --activate_2d_tracker \
 --activate_kalman_filter \
+--kf_measurement_noise_scale 0.05 \
 --apply_scale 0.01
 ```
 
-Use `force_apply_color` and `apply_color` to select a color for the mesh. Regarding other original [FoundationPose](https://github.com/030422Lee/FoundationPose_manual) parameters, checkout https://github.com/NVlabs/FoundationPose/issues/44#issuecomment-2048141043 if you have further problems or get unexpected results. Use `-h` to see the usages of the parameters. 
-check [install.md](./Install.md) to install all the dependencies
+Use `-h` to see the usages of the parameters.
 
-## Prepare your testcase data
-Your testcase data should be formatted like:
-```
-$PROJECT_ROOT/testcase
-└── color
-    ├── 0.jpg
-    ├── 1.jpg
-    └── ...
-└── depth
-    ├── 0.png
-    ├── 1.png
-    └── ...
-└── mesh
-    ├── 1x4.stl
-```
-There should be an RGB image file and a corresponding depth file for each frame, as well as a mesh file of the object, following [FoundationPose](https://github.com/NVlabs/FoundationPose) data format. You can check out [FoundationPose_manual](https://github.com/030422Lee/FoundationPose_manual) if you are not familiar with FoundationPose.
+For finer grained kalman filter settings, see [kalman_filter_6d.py](./src/utils/kalman_filter_6d.py).
 
-## Run webapi servers (QwenVL and SAM)
-```
-cd $PROJECT_ROOT
-# start Qwen-VL webapi
-python src/WebAPI/qwen2_vl_api.py --weight_path $PROJECT_ROOT/Qwen2-VL/weights &
-# start SAM webapi
-python src/WebAPI/hq_sam_api.py --checkpoint_path $PROJECT_ROOT/sam-hq/pretrained_checkpoints/sam_hq_vit_h.pth
-```
-## Get the object mask of the first frame to initialize the 2D tracker
-Open another terminal, export PROJECT_ROOT and run the following script to get the position of the bounding box.
-```
-cd $PROJECT_ROOT
-BOUNDING_BOX_POSITION=$(python src/utils/obj_bbox.py \
-    --frame_path $PROJECT_ROOT/testcase/color/0.jpg \
-    --visualize_path $PROJECT_ROOT/0_bbox.jpg \
-    --object_name $DESCRIPTION_OF_THE_OBJECT \
-    --reference_img_path $PATH_OF_REFERENCE_IMAGE)
-```
+Use `force_apply_color` and `apply_color` to select a color for the mesh. Regarding other original [FoundationPose](https://github.com/030422Lee/FoundationPose_manual) parameters, checkout https://github.com/NVlabs/FoundationPose/issues/44#issuecomment-2048141043 if you have further problems or get unexpected results. 
 
-Then run the following script to get the mask of object in the first frame.
-```
-python src/utils/obj_mask.py  \
-    --frame_path $PROJECT_ROOT/testcase/color/0.jpg \
-    --bbox_xywh "$BOUNDING_BOX_POSITION" \
-    --output_mask_path $PROJECT_ROOT/0_mask.jpg
-```
 
-`$DESCRIPTION_OF_THE_OBJECT`: the description of an object to help QwenVL anchor box positions, better in Chinese.
 
-`$PATH_OF_REFERENCE_IMAGE`: you can provide what the object looks like to help QwenVL anchor box positions more precisely.
-
-## 6D Pose Track Inference
-Run the following script to track 6D Pose, the results will be visualized in `$PROJECT_ROOT/pose_visualization`.
-```
-cd $PROJECT_ROOT
-python src/obj_pose_track.py \
---rgb_seq_path $PROJECT_ROOT/testcase/color \
---depth_seq_path $PROJECT_ROOT/testcase/depth \
---mesh_path $PROJECT_ROOT/testcase/mesh/1x4.stl \
---init_mask_path $PROJECT_ROOT/0_mask.jpg \
---pose_output_path $PROJECT_ROOT/pose \
---mask_visualization_path $PROJECT_ROOT/mask_visualization \
---bbox_visualization_path $PROJECT_ROOT/bbox_visualization \
---pose_visualization_path $PROJECT_ROOT/pose_visualization \
---activate_2d_tracker \
---activate_kalman_filter \
---apply_scale 0.01
-```
-
-Use `force_apply_color` and `apply_color` to select a color for the mesh. Regarding other original [FoundationPose](https://github.com/030422Lee/FoundationPose_manual) parameters, checkout https://github.com/NVlabs/FoundationPose/issues/44#issuecomment-2048141043 if you have further problems or get unexpected results. Use `-h` to see the usages of the parameters. 

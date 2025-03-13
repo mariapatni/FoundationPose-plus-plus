@@ -109,6 +109,8 @@ class Cutie(Tracker_2D):
             
         bbox_xywh = self._parse_output(mask_np)
 
+        frame = frame.copy()
+
         if mask_visualization_path is not None:
             visualize_mask(frame, mask_np*255, mask_visualization_path)
         if bbox_visualization_path is not None:

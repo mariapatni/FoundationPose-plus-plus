@@ -20,7 +20,7 @@ class KalmanFilter6D(object):
     [tx, ty, tz, rx, ry, rz, v_tx, v_ty, v_tz, v_rx, v_ry, v_rz]
     """
     
-    def __init__(self):
+    def __init__(self, measurement_noise_scale):
         ndim, dt = 6, 1.0  # 6 pose dimensions
         
         # State transition matrix (12x12)
@@ -41,6 +41,8 @@ class KalmanFilter6D(object):
         self._std_weight_rot = 1./20     # Rotation uncertainty
         self._std_weight_vel_trans = 1./20     # Translation speed uncertainty
         self._std_weight_vel_rot = 1./40    # Rotation speed uncertainty
+
+        self.measurement_noise_scale = measurement_noise_scale
 
     def initiate(self, measurement):
         """Initialize track with unassociated measurement (6DOF pose)"""
@@ -110,12 +112,12 @@ class KalmanFilter6D(object):
         scale_rot = mean[5]     
         
         std = [
-            0.1 * self._std_weight_trans * scale_xyz,
-            0.1 * self._std_weight_trans * scale_xyz,
-            0.1 * self._std_weight_trans * scale_xyz,
-            0.1 * self._std_weight_rot * scale_rot,
-            0.1 * self._std_weight_rot * scale_rot,
-            0.1 * self._std_weight_rot * scale_rot,
+            self.measurement_noise_scale * self._std_weight_trans * scale_xyz,
+            self.measurement_noise_scale * self._std_weight_trans * scale_xyz,
+            self.measurement_noise_scale * self._std_weight_trans * scale_xyz,
+            self.measurement_noise_scale * self._std_weight_rot * scale_rot,
+            self.measurement_noise_scale * self._std_weight_rot * scale_rot,
+            self.measurement_noise_scale * self._std_weight_rot * scale_rot,
         ]
         innovation_cov = np.diag(np.square(std))
         

@@ -257,7 +257,7 @@ def pose_track(
     #################################################
 
     if activate_kalman_filter:
-        kf = KalmanFilter6D()
+        kf = KalmanFilter6D(args.kf_measurement_noise_scale)
 
     total_frames = len(frame_color_list)
     pose_seq = [None] * total_frames  # Initialize as None
@@ -322,7 +322,7 @@ def pose_track(
                 bbox_visualization_path=bbox_visualization_color_filename
             )
             # TODO: get occluded mask
-            adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
+            # adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
 
             if not activate_kalman_filter:
                adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
@@ -399,7 +399,7 @@ if __name__ == "__main__":
     parser.add_argument("--depth_seq_path", type=str, default="/workspace/yanwenhao/detection/test_case2/depth")
     parser.add_argument("--mesh_path", type=str, default="/workspace/yanwenhao/detection/test_case2/mesh/1x4.stl")
     parser.add_argument("--init_mask_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/masks/0_m.jpg")
-    parser.add_argument("--pose_output_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/pose")
+    parser.add_argument("--pose_output_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/pose.npy")
     parser.add_argument("--mask_visualization_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/masks_visualization")
     parser.add_argument("--bbox_visualization_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/bbox_visualization")
     parser.add_argument("--pose_visualization_path", type=str, default="/workspace/yanwenhao/detection/FoundationPose++/pose_visualization")
@@ -408,9 +408,10 @@ if __name__ == "__main__":
     parser.add_argument("--track_refine_iter", type=int, default=5, help="FoundationPose tracking refine iterations, see https://github.com/NVlabs/FoundationPose")
     parser.add_argument("--activate_2d_tracker", action='store_true', help="activate 2d tracker")
     parser.add_argument("--activate_kalman_filter", action='store_true', help="activate kalman_filter")
+    parser.add_argument("--kf_measurement_noise_scale", type=float, default=0.05, help="The scale of measurement noise relative to prediction in kalman filter, greater value means more filtering. Only effective if activate_kalman_filter")
     parser.add_argument("--apply_scale", type=float, default=0.01, help="Mesh scale factor in meters (1.0 means no scaling), commonly use 0.01")
     parser.add_argument("--force_apply_color", action='store_true', help="force a color for colorless mesh")
-    parser.add_argument("--apply_color", type=json.loads, default="[0, 159, 237]", help="RGB color to apply, in format 'r,g,b'. Only effective if force_apply_color is True")
+    parser.add_argument("--apply_color", type=json.loads, default="[0, 159, 237]", help="RGB color to apply, in format 'r,g,b'. Only effective if force_apply_color")
     args = parser.parse_args()
 
     pose_track(

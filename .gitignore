@@ -15,5 +15,5 @@ masks/
 bbox_visualization/
 pose_visualization/
 output_pose.npy
-Selected_test_case.zip
 testcase/
+lego_20fps/
