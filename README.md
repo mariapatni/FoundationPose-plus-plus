@@ -41,9 +41,6 @@ In our FoundationPose++, the tracking process also only requires running the Ref
 ### Amodal Completion
 To improve occlusion resistance, we considered introducing Amodal Completion. This module might run slowly and have some compability issues, we are still working on the optimization of this module.
 
-![diffusion-vas](.figs/diffusion-vas.gif)
-- From [Using Diffusion Priors for Video Amodal Segmentation](https://diffusion-vas.github.io/)
-
 ![Amodal_Depth_Anything](.figs/Amodal_Depth_Anything.png)
 - From [Amodal Depth Anything](https://zhyever.github.io/amodaldepthanything/)
 
