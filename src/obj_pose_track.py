@@ -323,15 +323,17 @@ def pose_track(
             )
             # TODO: get occluded mask
             # adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
-
-            if not activate_kalman_filter:
-               adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
+            if activate_2d_tracker:
+                if not activate_kalman_filter:
+                    adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
+                else:
+                    kf_mean, kf_covariance = kf.update_from_xy(kf_mean, kf_covariance, np.array(get_pose_xy_from_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)))
+                    adjusted_last_pose = get_mat_from_6d_pose_arr(kf_mean[:6]) 
             else:
-                kf_mean, kf_covariance = kf.update_from_xy(kf_mean, kf_covariance, np.array(get_pose_xy_from_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)))
-                adjusted_last_pose = get_mat_from_6d_pose_arr(kf_mean[:6])  
+                adjusted_last_pose = pose 
 
             pose = est.track_one_w_spec_last_pose(rgb=color, depth=depth, K=cam_K, iteration=track_refine_iter, spec_last_pose=adjusted_last_pose)
-            if activate_kalman_filter:
+            if activate_2d_tracker and activate_kalman_filter:
                 kf_mean, kf_covariance = kf.predict(kf_mean, kf_covariance)
                 kf_mean, kf_covariance = kf.update(kf_mean, kf_covariance, get_6d_pose_arr_from_mat(pose))
                 pose = get_mat_from_6d_pose_arr(kf_mean[:6])

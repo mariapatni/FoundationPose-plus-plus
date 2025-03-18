@@ -41,9 +41,6 @@ In our FoundationPose++, the tracking process also only requires running the Ref
 ### Amodal Completion
 To improve occlusion resistance, we considered introducing Amodal Completion. This module might run slowly and have some compability issues, we are still working on the optimization of this module.
 
-![Amodal_Depth_Anything](.figs/Amodal_Depth_Anything.png)
-- From [Amodal Depth Anything](https://zhyever.github.io/amodaldepthanything/)
-
 ## News
 - **`2025/03/12`** 🎉: We officially release our project containing tracker and kalman filter for public preview. Current code has been tested on both Nvidia RTX4090@Ubuntu20.04 and Nvidia H800@Ubuntu 22.04. If you have any problem using this project, feel free to submit an issue.
 
