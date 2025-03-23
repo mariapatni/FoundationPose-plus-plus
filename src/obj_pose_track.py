@@ -38,77 +38,157 @@ def get_sorted_frame_list(dir: str) -> List:
 
 
 def adjust_pose_to_image_point(
-        ob_in_cam: np.ndarray, 
-        K: np.ndarray, 
-        x: float = -1., 
+        ob_in_cam: torch.Tensor,
+        K: torch.Tensor,
+        x: float = -1.,
         y: float = -1.,
-) -> np.ndarray:
+) -> torch.Tensor:
     """
-    Adjusts the 6D pose so that its projection matches the given 2D coordinate (x, y).
+    Adjusts the 6D pose(s) so that the projection matches the given 2D coordinate (x, y).
 
     Parameters:
-    - K: Camera intrinsic matrix (3x3).
-    - ob_in_cam: Original 6D pose as a 4x4 transformation matrix.
+    - ob_in_cam: Original 6D pose(s) as [4,4] or [B,4,4] tensor.
+    - K: Camera intrinsic matrix (3x3 tensor).
     - x, y: Desired 2D coordinates on the image plane.
 
     Returns:
-    - ob_in_cam_new: Adjusted 6D pose as a 4x4 transformation matrix.
+    - ob_in_cam_new: Adjusted pose(s) in same shape as input (tensor).
     """
-    # Extract rotation (R) and translation (t) from the original pose
-    R = ob_in_cam[:3, :3]
-    t = ob_in_cam[:3, 3]
+    device = ob_in_cam.device
+    dtype = ob_in_cam.dtype
 
-    tx, ty = get_pose_xy_from_image_point(ob_in_cam, K, x, y)
+    is_batched = ob_in_cam.ndim == 3
+    if not is_batched:
+        ob_in_cam = ob_in_cam.unsqueeze(0)  # [1, 4, 4]
 
-    # Update the translation vector
-    t_new = np.array([tx, ty, t[2]])
+    B = ob_in_cam.shape[0]
+    ob_in_cam_new = torch.eye(4, device=device, dtype=dtype).repeat(B, 1, 1)
 
-    # Construct the new transformation matrix with the updated translation
-    ob_in_cam_new = np.eye(4)
-    ob_in_cam_new[:3, :3] = R
-    ob_in_cam_new[:3, 3] = t_new
+    for i in range(B):
+        R = ob_in_cam[i, :3, :3]
+        t = ob_in_cam[i, :3, 3]
 
-    return ob_in_cam_new
+        tx, ty = get_pose_xy_from_image_point(ob_in_cam[i], K, x, y)
+        t_new = torch.tensor([tx, ty, t[2]], device=device, dtype=dtype)
+
+        ob_in_cam_new[i, :3, :3] = R
+        ob_in_cam_new[i, :3, 3] = t_new
+
+    return ob_in_cam_new if is_batched else ob_in_cam_new[0]
 
 
 def get_pose_xy_from_image_point(
-        ob_in_cam: np.ndarray, 
-        K: np.ndarray, 
+        ob_in_cam: torch.Tensor, 
+        K: torch.Tensor, 
         x: float = -1., 
         y: float = -1.,
-) -> np.ndarray:
+) -> tuple:
     """
-    Adjusts the 6D pose so that its projection matches the given 2D coordinate (x, y).
+    Computes new (tx, ty) in camera space such that the projection matches image point (x, y).
 
     Parameters:
-    - K: Camera intrinsic matrix (3x3).
-    - ob_in_cam: Original 6D pose as a 4x4 transformation matrix.
-    - x, y: Desired 2D coordinates on the image plane.
+    - ob_in_cam: 4x4 pose tensor.
+    - K: 3x3 intrinsic matrix tensor.
+    - x, y: Desired image coordinates.
 
     Returns:
-    - ob_in_cam_new: Adjusted 6D pose as a 4x4 transformation matrix.
+    - tx, ty: New x/y in camera coordinate system.
     """
-
     if x == -1. or y == -1.:
         return x, y
 
-    # Extract rotation (R) and translation (t) from the original pose
     t = ob_in_cam[:3, 3]
 
-    # Camera intrinsic parameters
     fx = K[0, 0]
     fy = K[1, 1]
     cx = K[0, 2]
     cy = K[1, 2]
-
-    # Keep the depth (tz) the same
     tz = t[2]
 
-    # Use depth to match the desired 2D point
     tx = (x - cx) * tz / fx
-    ty = (y - cy) * tz / fy     
+    ty = (y - cy) * tz / fy
 
     return tx, ty
+
+
+# def adjust_pose_to_image_point(
+#         ob_in_cam_ori: torch.tensor, 
+#         K: np.ndarray, 
+#         x: float = -1., 
+#         y: float = -1.,
+# ) -> np.ndarray:
+#     """
+#     Adjusts the 6D pose so that its projection matches the given 2D coordinate (x, y).
+
+#     Parameters:
+#     - K: Camera intrinsic matrix (3x3).
+#     - ob_in_cam: Original 6D pose as a 4x4 transformation matrix.
+#     - x, y: Desired 2D coordinates on the image plane.
+
+#     Returns:
+#     - ob_in_cam_new: Adjusted 6D pose as a 4x4 transformation matrix.
+#     """
+#     # Extract rotation (R) and translation (t) from the original pose
+#     device = ob_in_cam_ori.device
+#     if ob_in_cam_ori.ndim == 3:
+#         ob_in_cam = ob_in_cam_ori[0].detach().cpu().numpy()
+#     else:
+#         ob_in_cam = ob_in_cam_ori.detach().cpu().numpy()
+#     R = ob_in_cam[:3, :3]
+#     t = ob_in_cam[:3, 3]
+
+#     tx, ty = get_pose_xy_from_image_point(ob_in_cam, K, x, y)
+
+#     # Update the translation vector
+#     t_new = np.array([tx, ty, t[2]])
+
+#     # Construct the new transformation matrix with the updated translation
+#     ob_in_cam_new = np.eye(4)
+#     ob_in_cam_new[:3, :3] = R
+#     ob_in_cam_new[:3, 3] = t_new
+
+
+#     return torch.from_numpy(ob_in_cam_new).to(device)
+
+
+# def get_pose_xy_from_image_point(
+#         ob_in_cam: np.ndarray, 
+#         K: np.ndarray, 
+#         x: float = -1., 
+#         y: float = -1.,
+# ) -> np.ndarray:
+#     """
+#     Adjusts the 6D pose so that its projection matches the given 2D coordinate (x, y).
+
+#     Parameters:
+#     - K: Camera intrinsic matrix (3x3).
+#     - ob_in_cam: Original 6D pose as a 4x4 transformation matrix.
+#     - x, y: Desired 2D coordinates on the image plane.
+
+#     Returns:
+#     - ob_in_cam_new: Adjusted 6D pose as a 4x4 transformation matrix.
+#     """
+
+#     if x == -1. or y == -1.:
+#         return x, y
+
+#     # Extract rotation (R) and translation (t) from the original pose
+#     t = ob_in_cam[:3, 3]
+
+#     # Camera intrinsic parameters
+#     fx = K[0, 0]
+#     fy = K[1, 1]
+#     cx = K[0, 2]
+#     cy = K[1, 2]
+
+#     # Keep the depth (tz) the same
+#     tz = t[2]
+
+#     # Use depth to match the desired 2D point
+#     tx = (x - cx) * tz / fx
+#     ty = (y - cy) * tz / fy     
+
+#     return tx, ty
 
 
 def project_3d_to_2d(point_3d_homogeneous, K, ob_in_cam):
@@ -301,12 +381,13 @@ def pose_track(
             if bbox_visualization_path is not None:
                 os.makedirs(bbox_visualization_path, exist_ok=True)
                 bbox_visualization_color_filename = os.path.join(bbox_visualization_path, frame_color_filename)
-            _ = tracker_2D.initialize(
-                color, 
-                init_info={"mask": init_mask}, 
-                mask_visualization_path=mask_visualization_color_filename, 
-                bbox_visualization_path=bbox_visualization_color_filename
-            )
+            if activate_2d_tracker:
+                tracker_2D.initialize(
+                    color, 
+                    init_info={"mask": init_mask}, 
+                    mask_visualization_path=mask_visualization_color_filename, 
+                    bbox_visualization_path=bbox_visualization_color_filename
+                )
         else:
             mask_visualization_color_filename = None
             bbox_visualization_color_filename = None
@@ -316,23 +397,25 @@ def pose_track(
             if bbox_visualization_path is not None:
                 os.makedirs(bbox_visualization_path, exist_ok=True)
                 bbox_visualization_color_filename = os.path.join(bbox_visualization_path, frame_color_filename)
-            bbox_2d = tracker_2D.track(
-                color,
-                mask_visualization_path=mask_visualization_color_filename,
-                bbox_visualization_path=bbox_visualization_color_filename
-            )
+            if activate_2d_tracker:
+                bbox_2d = tracker_2D.track(
+                    color,
+                    mask_visualization_path=mask_visualization_color_filename,
+                    bbox_visualization_path=bbox_visualization_color_filename
+                )
             # TODO: get occluded mask
             # adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
             if activate_2d_tracker:
                 if not activate_kalman_filter:
-                    adjusted_last_pose = adjust_pose_to_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
+                    est.pose_last = adjust_pose_to_image_point(ob_in_cam=est.pose_last, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
                 else:
                     kf_mean, kf_covariance = kf.update_from_xy(kf_mean, kf_covariance, np.array(get_pose_xy_from_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)))
                     adjusted_last_pose = get_mat_from_6d_pose_arr(kf_mean[:6]) 
-            else:
-                adjusted_last_pose = pose 
+            # else:
+            #     adjusted_last_pose = pose 
 
-            pose = est.track_one_w_spec_last_pose(rgb=color, depth=depth, K=cam_K, iteration=track_refine_iter, spec_last_pose=adjusted_last_pose)
+            # pose = est.track_one_w_spec_last_pose(rgb=color, depth=depth, K=cam_K, iteration=track_refine_iter, spec_last_pose=adjusted_last_pose)
+            pose = est.track_one(rgb=color, depth=depth, K=cam_K, iteration=track_refine_iter)
             if activate_2d_tracker and activate_kalman_filter:
                 kf_mean, kf_covariance = kf.predict(kf_mean, kf_covariance)
                 kf_mean, kf_covariance = kf.update(kf_mean, kf_covariance, get_6d_pose_arr_from_mat(pose))
