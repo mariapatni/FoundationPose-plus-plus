@@ -94,10 +94,17 @@ def get_pose_xy_from_image_point(
     Returns:
     - tx, ty: New x/y in camera coordinate system.
     """
+
+    is_batched = ob_in_cam.ndim == 3
+    if is_batched:
+        ob_in_cam_new = ob_in_cam[0].cpu()  # [1, 4, 4]
+    else:
+        ob_in_cam_new = ob_in_cam.cpu()
+
     if x == -1. or y == -1.:
         return x, y
-
-    t = ob_in_cam[:3, 3]
+    
+    t = ob_in_cam_new[:3, 3]
 
     fx = K[0, 0]
     fy = K[1, 1]
@@ -225,8 +232,17 @@ def get_mat_from_6d_pose_arr(pose_arr):
     return transformation_matrix
 
 def get_6d_pose_arr_from_mat(pose):
-    xyz = pose[:3, 3]
-    rotation_matrix = pose[:3, :3]
+    if torch.is_tensor(pose):
+        is_batched = pose.ndim == 3
+        if is_batched:
+            pose_np = pose[0].cpu().numpy()
+        else:
+            pose_np = pose.cpu().numpy()
+    else:
+        pose_np = pose
+
+    xyz = pose_np[:3, 3]
+    rotation_matrix = pose_np[:3, :3]
     euler_angles = Rotation.from_matrix(rotation_matrix).as_euler('xyz', degrees=False)
     return np.r_[xyz, euler_angles]
 
@@ -409,17 +425,16 @@ def pose_track(
                 if not activate_kalman_filter:
                     est.pose_last = adjust_pose_to_image_point(ob_in_cam=est.pose_last, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)
                 else:
-                    kf_mean, kf_covariance = kf.update_from_xy(kf_mean, kf_covariance, np.array(get_pose_xy_from_image_point(ob_in_cam=pose, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2)))
-                    adjusted_last_pose = get_mat_from_6d_pose_arr(kf_mean[:6]) 
-            # else:
-            #     adjusted_last_pose = pose 
+                    # using kf to estimate the 6d estimation of the last pose
+                    kf_mean, kf_covariance = kf.update(kf_mean, kf_covariance, get_6d_pose_arr_from_mat(est.pose_last))
+                    measurement_xy = np.array(get_pose_xy_from_image_point(ob_in_cam=est.pose_last, K=cam_K, x=bbox_2d[0]+bbox_2d[2]/2, y=bbox_2d[1]+bbox_2d[3]/2))
+                    kf_mean, kf_covariance = kf.update_from_xy(kf_mean, kf_covariance, measurement_xy)
+                    est.pose_last = torch.from_numpy(get_mat_from_6d_pose_arr(kf_mean[:6])).unsqueeze(0).to(est.pose_last.device)
 
-            # pose = est.track_one_w_spec_last_pose(rgb=color, depth=depth, K=cam_K, iteration=track_refine_iter, spec_last_pose=adjusted_last_pose)
             pose = est.track_one(rgb=color, depth=depth, K=cam_K, iteration=track_refine_iter)
             if activate_2d_tracker and activate_kalman_filter:
-                kf_mean, kf_covariance = kf.predict(kf_mean, kf_covariance)
-                kf_mean, kf_covariance = kf.update(kf_mean, kf_covariance, get_6d_pose_arr_from_mat(pose))
-                pose = get_mat_from_6d_pose_arr(kf_mean[:6])
+                # use kf to predict from last pose, and update kf status
+                kf_mean, kf_covariance = kf.predict(kf_mean, kf_covariance)     # kf is alway one step behind
             
             
         pose_seq[i] = pose.reshape(4, 4)
