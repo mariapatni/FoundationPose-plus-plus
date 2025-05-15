@@ -167,3 +167,7 @@ Use `-h` to see the usages of the parameters.
 For finer grained kalman filter settings, see [kalman_filter_6d.py](./src/utils/kalman_filter_6d.py).
 
 Use `force_apply_color` and `apply_color` to select a color for the mesh. Regarding other original [FoundationPose](https://github.com/030422Lee/FoundationPose_manual) parameters, checkout https://github.com/NVlabs/FoundationPose/issues/44#issuecomment-2048141043 if you have further problems or get unexpected results. 
+
+
+## Citation
+Currently we don't have a paper, so you don't need to formally cite us. Still, you can use the default 'Cite this repository' of github to get a BibTex version of citation.
