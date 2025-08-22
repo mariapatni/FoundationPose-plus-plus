@@ -14,9 +14,9 @@ from VOT import Cutie, Tracker_2D
 from utils.kalman_filter_6d import KalmanFilter6D
 
 
-
 src_path = os.path.join(os.path.dirname(__file__), "..")
-foundationpose_path = os.path.join(src_path, "FoundationPose")
+foundationpose_path = os.path.join(os.path.dirname(__file__), "../../FoundationPose")
+
 if src_path not in sys.path:
     sys.path.append(src_path)
 if foundationpose_path not in sys.path:
@@ -35,7 +35,6 @@ def get_sorted_frame_list(dir: str) -> List:
     elif files[0].count('.') == 2:
         files.sort(key=lambda x: int(x.split('.')[0] + x.split('.')[1]))
     return files
-
 
 def adjust_pose_to_image_point(
         ob_in_cam: torch.Tensor,
@@ -75,7 +74,6 @@ def adjust_pose_to_image_point(
         ob_in_cam_new[i, :3, 3] = t_new
 
     return ob_in_cam_new if is_batched else ob_in_cam_new[0]
-
 
 def get_pose_xy_from_image_point(
         ob_in_cam: torch.Tensor, 
@@ -117,87 +115,6 @@ def get_pose_xy_from_image_point(
 
     return tx, ty
 
-
-# def adjust_pose_to_image_point(
-#         ob_in_cam_ori: torch.tensor, 
-#         K: np.ndarray, 
-#         x: float = -1., 
-#         y: float = -1.,
-# ) -> np.ndarray:
-#     """
-#     Adjusts the 6D pose so that its projection matches the given 2D coordinate (x, y).
-
-#     Parameters:
-#     - K: Camera intrinsic matrix (3x3).
-#     - ob_in_cam: Original 6D pose as a 4x4 transformation matrix.
-#     - x, y: Desired 2D coordinates on the image plane.
-
-#     Returns:
-#     - ob_in_cam_new: Adjusted 6D pose as a 4x4 transformation matrix.
-#     """
-#     # Extract rotation (R) and translation (t) from the original pose
-#     device = ob_in_cam_ori.device
-#     if ob_in_cam_ori.ndim == 3:
-#         ob_in_cam = ob_in_cam_ori[0].detach().cpu().numpy()
-#     else:
-#         ob_in_cam = ob_in_cam_ori.detach().cpu().numpy()
-#     R = ob_in_cam[:3, :3]
-#     t = ob_in_cam[:3, 3]
-
-#     tx, ty = get_pose_xy_from_image_point(ob_in_cam, K, x, y)
-
-#     # Update the translation vector
-#     t_new = np.array([tx, ty, t[2]])
-
-#     # Construct the new transformation matrix with the updated translation
-#     ob_in_cam_new = np.eye(4)
-#     ob_in_cam_new[:3, :3] = R
-#     ob_in_cam_new[:3, 3] = t_new
-
-
-#     return torch.from_numpy(ob_in_cam_new).to(device)
-
-
-# def get_pose_xy_from_image_point(
-#         ob_in_cam: np.ndarray, 
-#         K: np.ndarray, 
-#         x: float = -1., 
-#         y: float = -1.,
-# ) -> np.ndarray:
-#     """
-#     Adjusts the 6D pose so that its projection matches the given 2D coordinate (x, y).
-
-#     Parameters:
-#     - K: Camera intrinsic matrix (3x3).
-#     - ob_in_cam: Original 6D pose as a 4x4 transformation matrix.
-#     - x, y: Desired 2D coordinates on the image plane.
-
-#     Returns:
-#     - ob_in_cam_new: Adjusted 6D pose as a 4x4 transformation matrix.
-#     """
-
-#     if x == -1. or y == -1.:
-#         return x, y
-
-#     # Extract rotation (R) and translation (t) from the original pose
-#     t = ob_in_cam[:3, 3]
-
-#     # Camera intrinsic parameters
-#     fx = K[0, 0]
-#     fy = K[1, 1]
-#     cx = K[0, 2]
-#     cy = K[1, 2]
-
-#     # Keep the depth (tz) the same
-#     tz = t[2]
-
-#     # Use depth to match the desired 2D point
-#     tx = (x - cx) * tz / fx
-#     ty = (y - cy) * tz / fy     
-
-#     return tx, ty
-
-
 def project_3d_to_2d(point_3d_homogeneous, K, ob_in_cam):
     # Transform point to camera frame
     point_cam = ob_in_cam @ point_3d_homogeneous
@@ -211,7 +128,6 @@ def project_3d_to_2d(point_3d_homogeneous, K, ob_in_cam):
     v = K[1, 1] * y + K[1, 2]
 
     return (int(u), int(v))
-
 
 def get_mat_from_6d_pose_arr(pose_arr):
     # 提取位移 (xyz)
@@ -246,6 +162,59 @@ def get_6d_pose_arr_from_mat(pose):
     euler_angles = Rotation.from_matrix(rotation_matrix).as_euler('xyz', degrees=False)
     return np.r_[xyz, euler_angles]
 
+def get_recalibration_indices(masks_seq_path, frame_masks_list, depth_seq_path, frame_depth_list):
+    
+    total_frames = len(frame_masks_list)
+    object_lost_indices = [] # remember that these will be off by 2 since we deleted the first 2 buggy frames from every trial (frame_0002.png is index 0)
+    recalibration_indices = []
+
+    init_mask = cv2.imread(os.path.join(masks_seq_path, frame_masks_list[0]), cv2.IMREAD_GRAYSCALE)
+    # print("init mask shape", init_mask.shape)
+    # print("init mask total pixels", init_mask.shape[0] * init_mask.shape[1])
+
+    lost_object = False
+    grasp_detected = False
+    num_white_init = np.sum(init_mask == 255)
+    size_threshold_lost = num_white_init * 0.5
+    size_threshold_found = num_white_init * 0.8
+
+    
+    for i in range(0, total_frames):
+        
+        mask = cv2.imread(os.path.join(masks_seq_path, frame_masks_list[i]), cv2.IMREAD_GRAYSCALE)
+        num_white = np.sum(mask == 255)
+        num_black = np.sum(mask == 0)
+        assert num_white + num_black == mask.shape[0] * mask.shape[1]
+
+
+        # This logic is used to detect when the object is lost and found
+        if lost_object and num_white >= size_threshold_found:
+            lost_object = False
+            print(f"Object found at frame {frame_masks_list[i]}\n")
+            recalibration_indices.append(min(i + 2, total_frames)) # add the frame after last found object frame
+
+        elif num_white <= size_threshold_lost: # If our mask is less than 50% its original size, we consider it lost
+            print(f"Object lost at frame {frame_masks_list[i]}")
+            object_lost_indices.append(i)
+            lost_object = True
+
+        
+
+        # This logic is used to detect when the grasp is detected and lost
+        depth_img = cv2.imread(os.path.join(depth_seq_path, frame_depth_list[i]), cv2.IMREAD_UNCHANGED)
+        keep = (mask == 255)
+        depth_img[~keep] = 0
+        average_value = np.mean(depth_img[keep]) # average depth within the area of the depth image that corresponds to the object mask from the mask image generated by SAM.
+
+        if not(np.isnan(average_value)) and average_value <= 250 and not grasp_detected:
+            grasp_detected = True
+            print(f"Grasp detected at frame {frame_masks_list[i]}")
+            recalibration_indices.append(min(i, total_frames)) # add frame before we begin grasp for better pose estimation
+        elif grasp_detected and average_value > 250:
+            grasp_detected = False
+            print(f"Grasp lost at frame {frame_masks_list[i]}")
+     
+    return recalibration_indices, object_lost_indices
 
 def pose_track(
         rgb_seq_path: str,
@@ -271,11 +240,15 @@ def pose_track(
         return
     init_mask = init_mask.astype(bool)
 
+    masks_seq_path = os.path.join(os.path.dirname(rgb_seq_path), "masks")
+    
+
     #################################################
     # Read the frame list
     #################################################
     frame_color_list = get_sorted_frame_list(rgb_seq_path)
     frame_depth_list = get_sorted_frame_list(depth_seq_path)
+    frame_masks_list = get_sorted_frame_list(masks_seq_path)
     if not frame_color_list or not frame_depth_list:
         print(f"No RGB frames found.")
         return
@@ -293,7 +266,7 @@ def pose_track(
     #################################################
     # Load the mesh
     #################################################
-    from FoundationPose.estimater import trimesh_add_pure_colored_texture
+    from estimater import trimesh_add_pure_colored_texture
     
     mesh_file = os.path.join(mesh_path)
     if not os.path.exists(mesh_file):
@@ -304,6 +277,7 @@ def pose_track(
         mesh = mesh.dump(concatenate=True)
     # Convert units to meters
     mesh.apply_scale(args.apply_scale)
+
     if args.force_apply_color:
         mesh = trimesh_add_pure_colored_texture(mesh, color=np.array(args.apply_color), resolution=10)
 
@@ -359,6 +333,9 @@ def pose_track(
     pose_seq = [None] * total_frames  # Initialize as None
     kf_mean, kf_covariance = None, None
 
+    # Determine which frames to recalibrate the pose estimation on
+    recalibration_indices, object_lost_indices = get_recalibration_indices(masks_seq_path, frame_masks_list, depth_seq_path, frame_depth_list)
+
     # Forward processing from initial frame
     for i in range(0, total_frames):
         #################################################
@@ -366,6 +343,7 @@ def pose_track(
         #################################################
         frame_color_filename = frame_color_list[i]
         frame_depth_filename = frame_depth_list[i]
+        frame_mask_filename = frame_masks_list[i]
         color = imageio.imread(os.path.join(rgb_seq_path, frame_color_filename))[..., :3]
         color = cv2.resize(color, (color.shape[1], color.shape[0]), interpolation=cv2.INTER_NEAREST)
 
@@ -373,17 +351,23 @@ def pose_track(
         depth = cv2.resize(depth, (depth.shape[1], depth.shape[0]), interpolation=cv2.INTER_NEAREST)
         depth[(depth < 0.001) | (depth >= np.inf)] = 0
 
+        mask_input = cv2.imread(os.path.join(masks_seq_path, frame_mask_filename), cv2.IMREAD_GRAYSCALE)
+        
+
         if color is None or depth is None:
             print(f"Failed to read color frame {frame_color_filename} or depth map {frame_depth_filename}")
             continue
+
 
         #################################################
         # 6D pose tracking
         #################################################
 
-        if i == 0:
-            mask = init_mask.astype(np.uint8) * 255
-            pose = est.register(K=cam_K, rgb=color, depth=depth, ob_mask=mask, iteration=est_refine_iter)
+        if i == 0 or i in recalibration_indices:
+            print(f"ReRegistering object at frame {frame_color_filename}")
+            
+            # mask = init_mask.astype(np.uint8) * 255
+            pose = est.register(K=cam_K, rgb=color, depth=depth, ob_mask=mask_input, iteration=est_refine_iter)
             if activate_kalman_filter:
                 kf_mean, kf_covariance = kf.initiate(get_6d_pose_arr_from_mat(pose))
 
@@ -400,7 +384,7 @@ def pose_track(
             if activate_2d_tracker:
                 tracker_2D.initialize(
                     color, 
-                    init_info={"mask": init_mask}, 
+                    init_info={"mask": mask_input}, 
                     mask_visualization_path=mask_visualization_color_filename, 
                     bbox_visualization_path=bbox_visualization_color_filename
                 )

@@ -1,0 +1,117 @@
+name: poseplus
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Core Python and CUDA
+  - python=3.9
+  - cudatoolkit=12.1
+  - pytorch=2.1.0
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.1
+  
+  # Core scientific computing
+  - numpy
+  - scipy
+  - scikit-image
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - jupyter
+  - ipython
+  
+  # Computer vision and image processing
+  - opencv
+  - pillow
+  - imageio
+  - imageio-ffmpeg
+  
+  # 3D and geometry
+  - trimesh
+  - open3d
+  - pyrender
+  - pyglet
+  
+  # Deep learning and ML
+  - tensorboard
+  - tensorboardx
+  - wandb
+  - timm
+  - einops
+  
+  # Web and API
+  - fastapi
+  - uvicorn
+  - hydra-core
+  - omegaconf
+  
+  # Utilities
+  - tqdm
+  - pyyaml
+  - h5py
+  - pandas
+  - requests
+  - beautifulsoup4
+  - lxml
+  
+  # Development tools
+  - git
+  - cmake
+  - ninja
+  - build
+  
+  # Additional packages from the guide
+  - pip
+  - pip:
+    # FoundationPose specific
+    - ninja
+    - pytorch3d
+    - kaolin
+    - nvdiffrast
+    - pytorch-lightning
+    
+    # SAM-HQ
+    - segment-anything-hq
+    
+    # Qwen2-VL
+    - git+https://github.com/huggingface/transformers@21fac7abba2a37fae86106f87fcf9974fd1e3830
+    - accelerate
+    - qwen-vl-utils
+    
+    # Additional requirements from the guide
+    - Hydra
+    - fastapi
+    - uvicorn
+    
+    # Common ML packages
+    - albumentations
+    - kornia
+    - lpips
+    - lpips-pytorch
+    - pytorch-msssim
+    - pytorch-fid
+    
+    # Visualization
+    - plotly
+    - kaleido
+    - dash
+    
+    # Data handling
+    - zarr
+    - hdf5storage
+    - joblib
+    
+    # Monitoring and logging
+    - mlflow
+    - neptune-client
+    
+    # Testing
+    - pytest
+    - pytest-cov
+    - black
+    - flake8
+    - isort 
